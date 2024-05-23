@@ -82,10 +82,10 @@ bool is_outside_grid(Vector2 position) {
   }
 }
 
-bool is_spawn_on_body(Vector2 position, GameState *state) {
+bool is_spawn_on_body(Vector2 position, Vector2 start_pos, GameState *state) {
   for (int i = 0; i < state->body_length; i++) {
-    if (position.x == state->body[i].current.x &&
-        position.y == state->body[i].current.y) {
+    if (position.x == state->body[i].last.x + start_pos.x * GRID_SIZE &&
+        position.y == state->body[i].last.y + start_pos.y * GRID_SIZE) {
       return true;
     }
   }
@@ -111,7 +111,8 @@ Vector2 get_random_pos(GameState *state) {
 
     random_pos.x = start_pos.x + x * GRID_SIZE;
     random_pos.y = start_pos.y + y * GRID_SIZE;
-  } while (is_outside_grid(random_pos) && is_spawn_on_body(random_pos, state));
+  } while (is_outside_grid(random_pos) &&
+           is_spawn_on_body(random_pos, start_pos, state));
 
   return random_pos;
 }
@@ -143,9 +144,10 @@ void handle_input(InputManager *input) {
 }
 
 void hit_detection(GameState *state) {
+  Vector2 start_pos = get_start_pos();
   Vector2 pixel_position = {
-      get_start_pos().x + state->player->position.current.x * GRID_SIZE,
-      get_start_pos().y + state->player->position.current.y * GRID_SIZE};
+      start_pos.x + state->player->position.current.x * GRID_SIZE,
+      start_pos.y + state->player->position.current.y * GRID_SIZE};
 
   // snake ate the food
   // set to not alive to be respawned
@@ -162,6 +164,15 @@ void hit_detection(GameState *state) {
     }
 
     state->move_rate -= SPEED_INCREMENT;
+  }
+
+  for (int i = 0; i < state->body_length; i++) {
+    Vector2 item_position = {start_pos.x + state->body[i].last.x * GRID_SIZE,
+                             start_pos.y + state->body[i].last.y * GRID_SIZE};
+    if (pixel_position.x == item_position.x &&
+        pixel_position.y == item_position.y) {
+      state->current_scene = GAME_OVER;
+    }
   }
 }
 
@@ -219,14 +230,14 @@ void update(GameState *state, InputManager *input) {
 
   if (state->current_scene == GAME_OVER) {
     if (input->enter) {
-      state->current_scene = PLAY;
-
       free(state->player);
       state->player = setup_player();
 
       state->food.is_alive = false;
       state->body_length = 0;
       state->move_rate = DEFAULT_SPEED_INCREMENT;
+
+      state->current_scene = PLAY;
     }
   }
 }
@@ -240,17 +251,23 @@ void draw_debug() {
   DrawText(fps_str, 10, 10, 20, LIGHTGRAY);
 }
 
-void draw_game_over() {
+void draw_game_over(GameState *state) {
   static char game_over_str[32];
+  static char score_str[32];
   static char subtitle_str[64];
   sprintf(game_over_str, "Game Over");
+  sprintf(score_str, "Your score: %i", state->body_length);
   sprintf(subtitle_str, "Press 'Enter' to play again");
 
   int font_size = 72;
+  int score_size = 32;
   int subtitle_font_size = 24;
 
   int game_over_width = MeasureText(game_over_str, font_size);
   int game_over_height = font_size;
+
+  int score_width = MeasureText(score_str, score_size);
+  int score_height = score_size;
 
   int subtitle_width = MeasureText(subtitle_str, subtitle_font_size);
   int subtitle_height = subtitle_font_size;
@@ -259,11 +276,17 @@ void draw_game_over() {
   game_over_position.x = (float)(screen_width - game_over_width) / 2;
   game_over_position.y = (float)(screen_height - game_over_height) / 2;
 
+  Vector2 score_position;
+  score_position.x = (float)(screen_width - score_width) / 2;
+  score_position.y = game_over_position.y + game_over_height + 32;
+
   Vector2 subtitle_position;
   subtitle_position.x = (float)(screen_width - subtitle_width) / 2;
-  subtitle_position.y = game_over_position.y + game_over_height + 20;
+  subtitle_position.y = score_position.y + score_height + 18;
 
   DrawText(game_over_str, game_over_position.x, game_over_position.y, font_size,
+           LIGHTGRAY);
+  DrawText(score_str, score_position.x, score_position.y, score_size,
            LIGHTGRAY);
   DrawText(subtitle_str, subtitle_position.x, subtitle_position.y,
            subtitle_font_size, LIGHTGRAY);
@@ -329,7 +352,7 @@ void draw(GameState *state) {
   }
 
   if (state->current_scene == GAME_OVER) {
-    draw_game_over();
+    draw_game_over(state);
   }
 }
 
