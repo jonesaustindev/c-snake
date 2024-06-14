@@ -1,4 +1,4 @@
-# Snake - written in C
+# Snake
 
 I've been wanting to try out writing something in C, so what better way to get a small intro than to implement a classic game with [Raylib](https://github.com/raysan5/raylib)!
 
